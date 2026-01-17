@@ -1,1 +1,2 @@
 singleton ColorUtils 1.0 ColorUtils.qml
+singleton NumberUtils 1.0 NumberUtils.qml

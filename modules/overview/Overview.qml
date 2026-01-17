@@ -24,6 +24,7 @@ Scope {
 
             WlrLayershell.namespace: "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.exclusionMode: ExclusionMode.Ignore
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             color: "transparent"
 
@@ -31,13 +32,12 @@ Scope {
                 item: GlobalStates.overviewOpen ? keyHandler : null
             }
 
-            anchors {
-                top: true
-                bottom: true
-                left: !(Config?.options.overview.enable ?? true) 
-                right: !(Config?.options.overview.enable ?? true) 
-            }
-
+                        anchors {
+                            top: true
+                            bottom: true
+                            left: true
+                            right: true
+                        }
             HyprlandFocusGrab {
                 id: grab
                 windows: [root]
@@ -131,6 +131,39 @@ Scope {
                 }
             }
 
+            MouseArea {
+                id: hotCorner
+                anchors.top: parent.top
+                anchors.left: parent.left
+                width: 50
+                height: 50
+                z: 99999
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+
+                property bool wasInCorner: true // Start true so it doesn't close immediately on open
+
+                onPositionChanged: (mouse) => {
+                     const inCorner = mouse.x < 5 && mouse.y < 5;
+
+                     if (inCorner && !wasInCorner) {
+                         Quickshell.execDetached(["qs", "ipc", "-c", "shell", "call", "hotcorner", "ignore"]);
+                         GlobalStates.overviewOpen = false;
+                     }
+
+                     wasInCorner = inCorner;
+                }
+
+                Connections {
+                    target: GlobalStates
+                    function onOverviewOpenChanged() {
+                        if (GlobalStates.overviewOpen) {
+                            hotCorner.wasInCorner = true;
+                        }
+                    }
+                }
+            }
+
             ColumnLayout {
                 id: columnLayout
                 visible: GlobalStates.overviewOpen
@@ -151,7 +184,7 @@ Scope {
             }
         }
     }
-    
+
     IpcHandler {
         target: "overview"
 
