@@ -9,16 +9,61 @@ Singleton {
     id: root
 
     readonly property string home: Quickshell.env("HOME")
+    readonly property string configPath: `${Quickshell.env("XDG_CONFIG_HOME") || `${home}/.config`}/caelestia`
     readonly property string statePath: `${Quickshell.env("XDG_STATE_HOME") || `${home}/.local/state`}/caelestia`
 
     property string scheme
     property string flavour
     property bool currentLight
     readonly property M3Palette current: M3Palette {}
+    readonly property Transparency transparency: Transparency {}
 
-    // Simplified layer function (no transparency for now, or add it later)
+    function getLuminance(c: color): real {
+        if (c.r == 0 && c.g == 0 && c.b == 0)
+            return 0;
+        return Math.sqrt(0.299 * (c.r ** 2) + 0.587 * (c.g ** 2) + 0.114 * (c.b ** 2));
+    }
+
+    function alterColour(c: color, a: real, layer: int): color {
+        const luminance = getLuminance(c);
+        const offset = (!currentLight || layer == 1 ? 1 : -layer / 2) * (currentLight ? 0.2 : 0.3) * (1 - transparency.base);
+        const scale = (luminance + offset) / luminance;
+        const r = Math.max(0, Math.min(1, c.r * scale));
+        const g = Math.max(0, Math.min(1, c.g * scale));
+        const b = Math.max(0, Math.min(1, c.b * scale));
+        return Qt.rgba(r, g, b, a);
+    }
+
     function layer(c: color, layer: var): color {
-        return c;
+        if (!transparency.enabled)
+            return c;
+        return layer === 0 ? Qt.alpha(c, transparency.base) : alterColour(c, transparency.layers, layer ?? 1);
+    }
+
+    component Transparency: QtObject {
+        property bool enabled: false
+        property real base: 0.85
+        property real layers: 0.4
+    }
+
+    FileView {
+        id: shellConfigView
+        path: `${root.configPath}/shell.json`
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                const config = JSON.parse(text());
+                if (config.appearance?.transparency) {
+                    const t = config.appearance.transparency;
+                    root.transparency.enabled = t.enabled ?? false;
+                    root.transparency.base = (t.base ?? 0.85) - (root.currentLight ? 0.1 : 0);
+                    root.transparency.layers = t.layers ?? 0.4;
+                }
+            } catch (e) {
+                // Silently ignore parse errors
+            }
+        }
     }
 
     function load(data: string): void {

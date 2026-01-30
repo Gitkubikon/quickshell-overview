@@ -59,9 +59,9 @@ Item {
         implicitWidth: workspaceGrid.implicitWidth + padding * 2
         implicitHeight: workspaceGrid.implicitHeight + padding * 2
         radius: Appearance.rounding.screenRounding * root.scale + padding
-        color: Appearance.colors.colLayer0
+        color: Colours.layer(Appearance.colors.colLayer0, 0)
         border.width: 1
-        border.color: Appearance.colors.colLayer0Border
+        border.color: Colours.layer(Appearance.colors.colLayer0Border, 0)
 
 
         GridLayout { // Workspaces
@@ -83,7 +83,7 @@ Item {
                     readonly property int colIndex: index % Config.options.overview.columns
                     readonly property int workspaceValue: root.workspaceGroup * workspacesShown + index + 1
 
-                    property color defaultWorkspaceColor: Appearance.colors.colLayer1
+                    property color defaultWorkspaceColor: Colours.layer(Appearance.colors.colLayer1, 1)
                     property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                     property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                     property bool hoveredWhileDragging: false
@@ -139,7 +139,7 @@ Item {
             }
         }
 
-        // Special Workspaces Section  
+        // Special Workspaces Section
         Grid {
             id: specialWorkspacesGrid
             z: root.workspaceZ  // Same as normal workspaces; windows will be above
@@ -153,16 +153,16 @@ Item {
 
             Repeater {
                 model: Config.options.overview.specialWorkspaceCount
-                
+
                 Rectangle { // Special Workspace
                     id: specialWorkspace
                     required property int index
-                    
+
                     readonly property int workspaceNum: index + 1  // 1-based indexing
                     readonly property string workspaceName: `special:${workspaceNum}`
                     readonly property string displayName: NumberUtils.toRoman(workspaceNum)
 
-                    property color defaultWorkspaceColor: Appearance.colors.colLayer1
+                    property color defaultWorkspaceColor: Colours.layer(Appearance.colors.colLayer1, 1)
                     property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                     property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                     property bool hoveredWhileDragging: false
@@ -275,9 +275,9 @@ Item {
 
                     // Local override to update UI immediately on drop, preventing visual glitches
                     property var overrideWorkspaceName: null
-                    
+
                     readonly property string effectiveWorkspaceName: overrideWorkspaceName !== null ? overrideWorkspaceName.toString() : (windowData?.workspace?.name ?? "")
-                    
+
                     readonly property int effectiveWorkspaceId: {
                         if (overrideWorkspaceName !== null) {
                             if (effectiveWorkspaceName.startsWith("special:")) return -99;
@@ -290,7 +290,7 @@ Item {
                     readonly property bool isInSpecialWorkspace: effectiveWorkspaceName.startsWith("special:")
                     readonly property real targetWorkspaceWidth: isInSpecialWorkspace ? root.workspaceImplicitWidth * 0.7 : root.workspaceImplicitWidth
                     readonly property real targetWorkspaceHeight: isInSpecialWorkspace ? root.workspaceImplicitHeight * 0.7 : root.workspaceImplicitHeight
-                    
+
                     scale: Math.min(
                         targetWorkspaceWidth / sourceMonitorWidth,
                         targetWorkspaceHeight / sourceMonitorHeight
@@ -304,7 +304,7 @@ Item {
 
                     property int workspaceColIndex: (effectiveWorkspaceId - 1) % Config.options.overview.columns
                     property int workspaceRowIndex: Math.floor((effectiveWorkspaceId - 1) % root.workspacesShown / Config.options.overview.columns)
-                    
+
                     // Calculate special workspace grid position
                     property int specialWorkspaceIndex: {
                         if (!isInSpecialWorkspace) return -1;
@@ -313,22 +313,22 @@ Item {
                         const num = parseInt(wsName.slice("special:".length));
                         return isNaN(num) ? -1 : num - 1;  // 0-based index
                     }
-                    
+
                     property int specialWorkspaceCol: specialWorkspaceIndex === -1 ? 0 : specialWorkspaceIndex % 4
                     property int specialWorkspaceRow: specialWorkspaceIndex === -1 ? 0 : Math.floor(specialWorkspaceIndex / 4)
-                    
+
                     // Use simple, constant offsets like normal workspaces
                     readonly property real normalWSOffsetX: (root.workspaceImplicitWidth + workspaceSpacing) * workspaceColIndex
                     readonly property real normalWSOffsetY: (root.workspaceImplicitHeight + workspaceSpacing) * workspaceRowIndex
-                    
+
                     readonly property real specialWSTileSize: root.workspaceImplicitWidth * 0.7
                     readonly property real specialWSGridStartY: workspaceGrid.implicitHeight + workspaceSpacing * 3
                     readonly property real specialWS4TileWidth: 4 * specialWSTileSize + 3 * workspaceSpacing
                     readonly property real specialWSGridStartX: (workspaceGrid.implicitWidth  - specialWS4TileWidth) / 2
-                    
+
                     readonly property real specialWSOffsetX: specialWSGridStartX + specialWorkspaceCol * (specialWSTileSize + workspaceSpacing)
                     readonly property real specialWSOffsetY: specialWSGridStartY + specialWorkspaceRow * (specialWSTileSize + workspaceSpacing)
-                    
+
                     xOffset: isInSpecialWorkspace ? specialWSOffsetX : normalWSOffsetX
                     yOffset: isInSpecialWorkspace ? specialWSOffsetY : normalWSOffsetY
 
@@ -338,14 +338,14 @@ Item {
                     // Calculate relative window position
                     // We can just use the actual relative position now because we will apply the correct scale factor
                     readonly property int windowRelativeX: Math.max((windowData?.at[0] - (monitor?.x ?? 0) - (monitorData?.reserved?.[0] ?? 0)), 0)
-                        
+
                     readonly property int windowRelativeY: Math.max((windowData?.at[1] - (monitor?.y ?? 0) - (monitorData?.reserved?.[1] ?? 0)), 0)
 
                     // Use window.scale (delegate scale) instead of root.scale (global scale)
                     // window.scale automatically accounts for the 0.7x factor in special workspaces, preventing overflow
                     readonly property int initX: Math.round(windowRelativeX * window.scale + xOffset)
                     readonly property int initY: Math.round(windowRelativeY * window.scale + yOffset)
-                    
+
                     // Explicitly override width/height to ensure they follow the local scale, fixing dimension overflow
                     width: Math.min((windowData?.size[0] ?? 100) * window.scale, targetWorkspaceWidth)
                     height: Math.min((windowData?.size[1] ?? 100) * window.scale, targetWorkspaceHeight)
@@ -391,12 +391,12 @@ Item {
                             const currentWorkspace = currentWorkspaceName.startsWith("special:") ? currentWorkspaceName : currentWorkspaceId
                             root.draggingTargetWorkspace = -1
                             root.draggingFromWorkspace = -1
-                            
+
                             // Check if we actually moved to a different workspace
                             if (targetWorkspace !== -1 && targetWorkspace !== currentWorkspace && targetWorkspace !== "") {
                                 // Set optimistic override to prevent visual glitches while waiting for Hyprland
                                 window.overrideWorkspaceName = targetWorkspace.toString()
-                                
+
                                 // Check if target is a special workspace (will be a string starting with "special:")
                                 if (typeof targetWorkspace === 'string' && targetWorkspace.startsWith('special:')) {
                                     const specialName = targetWorkspace.slice("special:".length);
@@ -428,7 +428,7 @@ Item {
 
                             if (event.button === Qt.LeftButton) {
                                 GlobalStates.overviewOpen = false
-                                
+
                                 // Update mode state based on workspace type
                                 const wsName = effectiveWorkspaceName;
                                 if (wsName && wsName.startsWith("special:")) {
@@ -439,7 +439,7 @@ Item {
                                     // Exit scratchpad mode
                                     Hyprland.dispatch(`exec sh -c "mkdir -p ~/.cache/caelestia && echo normal > ~/.cache/caelestia/workspace-mode"`)
                                 }
-                                
+
                                 Hyprland.dispatch(`focuswindow address:${windowData.address}`)
                                 event.accepted = true
                             } else if (event.button === Qt.MiddleButton) {

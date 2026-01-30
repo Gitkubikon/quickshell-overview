@@ -22,7 +22,7 @@ Scope {
             screen: modelData
             visible: GlobalStates.overviewOpen
 
-            WlrLayershell.namespace: "quickshell:overview"
+            WlrLayershell.namespace: "caelestia-overview"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
