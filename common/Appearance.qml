@@ -5,16 +5,59 @@ import QtQuick
 import Quickshell
 import "../services"
 import "functions"
+import "." as Common
 
 Singleton {
     id: root
-    readonly property QtObject m3colors: Colours.current
+    property string colorSource: Common.Config.options.appearance.colorSource
+    // Caelestia colours come straight from the scheme file that Caelestia writes
+    // (watched live by services/Colours.qml) instead of polling `caelestia scheme get`.
+    property QtObject m3colors: {
+        if (colorSource === "matugen" && matugenLoader.item)
+            return matugenLoader.item;
+        if (colorSource === "caelestia")
+            return Colours.current;
+        return defaultColors;
+    }
     property QtObject animation
     property QtObject animationCurves
     property QtObject colors
     property QtObject rounding
     property QtObject font
     property QtObject sizes
+
+    Loader {
+        id: matugenLoader
+        active: root.colorSource === "matugen"
+        source: "Appearance.colors.qml"
+    }
+
+    property QtObject defaultColors: QtObject {
+        property bool darkmode: true
+        property color m3primary: "#E5B6F2"
+        property color m3onPrimary: "#452152"
+        property color m3primaryContainer: "#5D386A"
+        property color m3onPrimaryContainer: "#F9D8FF"
+        property color m3secondary: "#D5C0D7"
+        property color m3onSecondary: "#392C3D"
+        property color m3secondaryContainer: "#534457"
+        property color m3onSecondaryContainer: "#F2DCF3"
+        property color m3background: "#161217"
+        property color m3onBackground: "#EAE0E7"
+        property color m3surface: "#161217"
+        property color m3surfaceContainerLow: "#1F1A1F"
+        property color m3surfaceContainer: "#231E23"
+        property color m3surfaceContainerHigh: "#2D282E"
+        property color m3surfaceContainerHighest: "#383339"
+        property color m3onSurface: "#EAE0E7"
+        property color m3surfaceVariant: "#4C444D"
+        property color m3onSurfaceVariant: "#CFC3CD"
+        property color m3inverseSurface: "#EAE0E7"
+        property color m3inverseOnSurface: "#342F34"
+        property color m3outline: "#988E97"
+        property color m3outlineVariant: "#4C444D"
+        property color m3shadow: "#000000"
+    }
 
     colors: QtObject {
         property color colSubtext: m3colors.m3outline
@@ -28,6 +71,7 @@ Singleton {
         property color colLayer1Active: ColorUtils.mix(colLayer1, colOnLayer1, 0.85)
         property color colLayer2: m3colors.m3surfaceContainer
         property color colOnLayer2: m3colors.m3onSurface
+        property color colLayer2Border: ColorUtils.mix(root.m3colors.m3outlineVariant, colLayer2, 0.4)
         property color colLayer2Hover: ColorUtils.mix(colLayer2, colOnLayer2, 0.90)
         property color colLayer2Active: ColorUtils.mix(colLayer2, colOnLayer2, 0.80)
         property color colPrimary: m3colors.m3primary
@@ -42,28 +86,28 @@ Singleton {
     }
 
     rounding: QtObject {
-        property int unsharpen: 2
-        property int verysmall: 8
-        property int small: 12
-        property int normal: 17
-        property int large: 23
-        property int full: 9999
-        property int screenRounding: large
-        property int windowRounding: 18
+        property int unsharpen: Common.Config.options.appearance.rounding.unsharpen
+        property int verysmall: Common.Config.options.appearance.rounding.verysmall
+        property int small: Common.Config.options.appearance.rounding.small
+        property int normal: Common.Config.options.appearance.rounding.normal
+        property int large: Common.Config.options.appearance.rounding.large
+        property int full: Common.Config.options.appearance.rounding.full
+        property int screenRounding: Common.Config.options.appearance.rounding.screenRounding
+        property int windowRounding: Common.Config.options.appearance.rounding.windowRounding
     }
 
     font: QtObject {
         property QtObject family: QtObject {
-            property string main: "sans-serif"
-            property string title: "sans-serif"
-            property string expressive: "sans-serif"
+            property string main: Common.Config.options.appearance.font.family.main
+            property string title: Common.Config.options.appearance.font.family.title
+            property string expressive: Common.Config.options.appearance.font.family.expressive
         }
         property QtObject pixelSize: QtObject {
-            property int smaller: 12
-            property int small: 15
-            property int normal: 16
-            property int larger: 19
-            property int huge: 22
+            property int smaller: Common.Config.options.appearance.font.pixelSize.smaller
+            property int small: Common.Config.options.appearance.font.pixelSize.small
+            property int normal: Common.Config.options.appearance.font.pixelSize.normal
+            property int larger: Common.Config.options.appearance.font.pixelSize.larger
+            property int huge: Common.Config.options.appearance.font.pixelSize.huge
         }
     }
 
@@ -71,8 +115,8 @@ Singleton {
         readonly property list<real> expressiveDefaultSpatial: [0.38, 1.21, 0.22, 1.00, 1, 1]
         readonly property list<real> expressiveEffects: [0.34, 0.80, 0.34, 1.00, 1, 1]
         readonly property list<real> emphasizedDecel: [0.05, 0.7, 0.1, 1, 1, 1]
-        readonly property real expressiveDefaultSpatialDuration: 500
-        readonly property real expressiveEffectsDuration: 200
+        readonly property real expressiveDefaultSpatialDuration: Common.Config.options.appearance.animation.duration.elementMove
+        readonly property real expressiveEffectsDuration: Common.Config.options.appearance.animation.duration.elementMoveFast
     }
 
     animation: QtObject {
@@ -90,7 +134,7 @@ Singleton {
         }
 
         property QtObject elementMoveEnter: QtObject {
-            property int duration: 400
+            property int duration: Common.Config.options.appearance.animation.duration.elementMoveEnter
             property int type: Easing.BezierSpline
             property list<real> bezierCurve: animationCurves.emphasizedDecel
             property Component numberAnimation: Component {
@@ -117,6 +161,6 @@ Singleton {
     }
 
     sizes: QtObject {
-        property real elevationMargin: 10
+        property real elevationMargin: Common.Config.options.appearance.sizes.elevationMargin
     }
 }

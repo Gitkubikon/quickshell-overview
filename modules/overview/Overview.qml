@@ -19,18 +19,19 @@ Scope {
             required property var modelData
             readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.screen)
             property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
+            property bool blurEnabled: Config.options.overview.effects.enableBlur
+            property bool backdropEnabled: Config.options.overview.effects.enableBackdrop
+            property real backdropOpacity: Math.max(0, Math.min(1, Config.options.overview.effects.backdropOpacity))
+            property bool closeOnFocusLoss: Config.options.overview.closeOnFocusLoss ?? true
             screen: modelData
             visible: GlobalStates.overviewOpen
 
-            WlrLayershell.namespace: "caelestia-overview"
+            // Caelestia's Hyprland layerrules match `caelestia-(drawers|overview|notes|dictation)`.
+            WlrLayershell.namespace: blurEnabled ? "caelestia-overview-blur" : "caelestia-overview"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             color: "transparent"
-
-            mask: Region {
-                item: GlobalStates.overviewOpen ? keyHandler : null
-            }
 
             anchors {
                 top: true
@@ -45,7 +46,8 @@ Scope {
                 property bool canBeActive: root.monitorIsFocused
                 active: false
                 onCleared: () => {
-                    if (!active)
+                    // Only the monitor that owns the grab may close the overview
+                    if (root.closeOnFocusLoss && !active && canBeActive)
                         GlobalStates.overviewOpen = false;
                 }
             }
@@ -55,6 +57,21 @@ Scope {
                 function onOverviewOpenChanged() {
                     if (GlobalStates.overviewOpen) {
                         delayedGrabTimer.start();
+                    }
+                }
+            }
+
+            // Re-evaluate grab ownership when focused monitor changes
+            Connections {
+                target: Hyprland
+                function onFocusedMonitorChanged() {
+                    if (!GlobalStates.overviewOpen)
+                        return;
+                    // Transfer the grab to the newly focused monitor
+                    if (root.monitorIsFocused && !grab.active) {
+                        grab.active = true;
+                    } else if (!root.monitorIsFocused && grab.active) {
+                        grab.active = false;
                     }
                 }
             }
@@ -70,14 +87,37 @@ Scope {
                 }
             }
 
-            implicitWidth: columnLayout.implicitWidth
-            implicitHeight: columnLayout.implicitHeight
+            // Keep the layershell surface full-screen so backdrop/blur are not constrained by content size.
+            implicitWidth: screen.width
+            implicitHeight: screen.height
 
             Item {
                 id: keyHandler
                 anchors.fill: parent
                 visible: GlobalStates.overviewOpen
                 focus: GlobalStates.overviewOpen
+                z: 0
+
+                Rectangle {
+                    id: backdropLayer
+                    anchors.fill: parent
+                    visible: root.backdropEnabled
+                    color: "#000000"
+                    opacity: root.backdropOpacity
+                    z: 0
+                }
+
+                MouseArea {
+                    id: outsideClickCatcher
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                    enabled: root.closeOnFocusLoss && GlobalStates.overviewOpen
+                    z: 0
+                    onPressed: mouse => {
+                        GlobalStates.overviewOpen = false;
+                        mouse.accepted = true;
+                    }
+                }
 
                 Keys.onPressed: event => {
                     // close: Escape or Enter
@@ -90,25 +130,53 @@ Scope {
                     // Helper: compute current group bounds
                     const workspacesPerGroup = Config.options.overview.rows * Config.options.overview.columns;
                     const currentId = Hyprland.focusedMonitor?.activeWorkspace?.id ?? 1;
-                    const currentGroup = Math.floor((currentId - 1) / workspacesPerGroup);
-                    const minWorkspaceId = currentGroup * workspacesPerGroup + 1;
+                    const useWorkspaceMap = Config.options.overview.useWorkspaceMap;
+                    const workspaceMap = Config.options.overview.workspaceMap ?? [];
+                    const focusedMonitorId = Hyprland.focusedMonitor?.id ?? root.monitor?.id ?? 0;
+                    const workspaceOffset = useWorkspaceMap ? Number(workspaceMap[focusedMonitorId] ?? 0) : 0;
+                    const currentGroup = Math.floor((currentId - workspaceOffset - 1) / workspacesPerGroup);
+                    const minWorkspaceId = currentGroup * workspacesPerGroup + 1 + workspaceOffset;
                     const maxWorkspaceId = minWorkspaceId + workspacesPerGroup - 1;
+
+                    const rows = Config.options.overview.rows;
+                    const columns = Config.options.overview.columns;
+                    const reverseColumns = Config.options.overview.orderRightLeft;
+                    const reverseRows = Config.options.overview.orderBottomUp;
+
+                    const clampedIndex = Math.max(0, Math.min(workspacesPerGroup - 1, currentId - minWorkspaceId));
+                    const currentNormalRow = Math.floor(clampedIndex / columns);
+                    const currentNormalColumn = clampedIndex % columns;
+
+                    function toVisualRow(normalRow) {
+                        return reverseRows ? (rows - normalRow - 1) : normalRow;
+                    }
+
+                    function toVisualColumn(normalColumn) {
+                        return reverseColumns ? (columns - normalColumn - 1) : normalColumn;
+                    }
+
+                    function toNormalRow(visualRow) {
+                        return reverseRows ? (rows - visualRow - 1) : visualRow;
+                    }
+
+                    function toNormalColumn(visualColumn) {
+                        return reverseColumns ? (columns - visualColumn - 1) : visualColumn;
+                    }
+
+                    let targetVisualRow = toVisualRow(currentNormalRow);
+                    let targetVisualColumn = toVisualColumn(currentNormalColumn);
 
                     let targetId = null;
 
                     // Arrow keys and vim-style hjkl
                     if (event.key === Qt.Key_Left || event.key === Qt.Key_H) {
-                        targetId = currentId - 1;
-                        if (targetId < minWorkspaceId) targetId = maxWorkspaceId;
+                        targetVisualColumn = (targetVisualColumn - 1 + columns) % columns;
                     } else if (event.key === Qt.Key_Right || event.key === Qt.Key_L) {
-                        targetId = currentId + 1;
-                        if (targetId > maxWorkspaceId) targetId = minWorkspaceId;
+                        targetVisualColumn = (targetVisualColumn + 1) % columns;
                     } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
-                        targetId = currentId - Config.options.overview.columns;
-                        if (targetId < minWorkspaceId) targetId += workspacesPerGroup;
+                        targetVisualRow = (targetVisualRow - 1 + rows) % rows;
                     } else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
-                        targetId = currentId + Config.options.overview.columns;
-                        if (targetId > maxWorkspaceId) targetId -= workspacesPerGroup;
+                        targetVisualRow = (targetVisualRow + 1) % rows;
                     }
 
                     // Number keys: jump to workspace within the current group
@@ -125,13 +193,31 @@ Scope {
                         }
                     }
 
+                    if (targetId === null && (
+                        event.key === Qt.Key_Left || event.key === Qt.Key_H ||
+                        event.key === Qt.Key_Right || event.key === Qt.Key_L ||
+                        event.key === Qt.Key_Up || event.key === Qt.Key_K ||
+                        event.key === Qt.Key_Down || event.key === Qt.Key_J
+                    )) {
+                        const targetNormalRow = toNormalRow(targetVisualRow);
+                        const targetNormalColumn = toNormalColumn(targetVisualColumn);
+                        targetId = minWorkspaceId + targetNormalRow * columns + targetNormalColumn;
+                    }
+
                     if (targetId !== null) {
-                        Hyprland.dispatch("workspace " + targetId);
+                        const clampedTarget = Math.max(minWorkspaceId, Math.min(maxWorkspaceId, targetId));
+			if (Hyprland.usingLua) {
+				Hyprland.dispatch(`hl.dsp.focus({workspace = '${clampedTarget}'})`);
+			} else {
+				Hyprland.dispatch("workspace " + clampedTarget);
+			}
                         event.accepted = true;
                     }
                 }
             }
 
+            // Hot corner: sliding back into the top-left corner hands control back to
+            // the main Caelestia shell and closes the overview.
             MouseArea {
                 id: hotCorner
                 anchors.top: parent.top
@@ -144,15 +230,15 @@ Scope {
 
                 property bool wasInCorner: true // Start true so it doesn't close immediately on open
 
-                onPositionChanged: (mouse) => {
-                     const inCorner = mouse.x < 5 && mouse.y < 5;
+                onPositionChanged: mouse => {
+                    const inCorner = mouse.x < 5 && mouse.y < 5;
 
-                     if (inCorner && !wasInCorner) {
-                         Quickshell.execDetached(["qs", "ipc", "-c", "shell", "call", "hotcorner", "ignore"]);
-                         GlobalStates.overviewOpen = false;
-                     }
+                    if (inCorner && !wasInCorner) {
+                        Quickshell.execDetached(["qs", "ipc", "-c", "shell", "call", "hotcorner", "ignore"]);
+                        GlobalStates.overviewOpen = false;
+                    }
 
-                     wasInCorner = inCorner;
+                    wasInCorner = inCorner;
                 }
 
                 Connections {
@@ -168,15 +254,16 @@ Scope {
             ColumnLayout {
                 id: columnLayout
                 visible: GlobalStates.overviewOpen
+                z: 1
                 anchors {
                     horizontalCenter: parent.horizontalCenter
                     top: parent.top
-                    topMargin: 100
+                    topMargin: Config.options.position.topMargin
                 }
 
                 Loader {
                     id: overviewLoader
-                    active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true)
+                    active: Config?.options.overview.enable ?? true
                     sourceComponent: OverviewWidget {
                         panelWindow: root
                         visible: true

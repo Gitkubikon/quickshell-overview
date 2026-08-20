@@ -1,6 +1,6 @@
 # Caelestia Overview
 
-A Hyprland workspace overview for Quickshell, tuned for the [Caelestia](https://github.com/caelestia-dots) shell setup. Shows all workspaces with live window previews, drag-and-drop, special-workspace row, layered transparency, and Roman-numeral special-workspace numbering.
+A Hyprland workspace overview for Quickshell, tuned for the [Caelestia](https://github.com/caelestia-dots) shell setup. Shows all workspaces with live window previews, drag-and-drop, a special-workspace (scratchpad) strip, layered transparency, and Roman-numeral workspace numbering.
 
 Forked from [Shanu-Kumawat/quickshell-overview](https://github.com/Shanu-Kumawat/quickshell-overview), itself extracted from [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
 
@@ -16,13 +16,18 @@ Forked from [Shanu-Kumawat/quickshell-overview](https://github.com/Shanu-Kumawat
 
 ## What this fork adds
 
-- Pulls colors live from Caelestia (`~/.local/state/caelestia/scheme.json`)
-- Pulls transparency from Caelestia (`~/.config/caelestia/shell.json` → `appearance.transparency`)
-- Layered transparency via `Colours.layer()` — backgrounds, panels, and tiles tint coherently
-- 8 normal + 8 special workspaces (matches Caelestia's `scratchpad-workspaces.conf`)
-- Roman-numeral labels for special workspaces (I, II, III, …)
-- WlrLayer namespace `caelestia-overview` (lets Caelestia's blur/effects target it)
+Everything upstream does, plus:
+
+- Colors read live from Caelestia's scheme file (`~/.local/state/caelestia/scheme.json`), watched
+  with `FileView` — this replaces upstream's `caelestia scheme get` polling for `colorSource: "caelestia"`
+- Transparency read from Caelestia (`~/.config/caelestia/shell.json` → `appearance.transparency`)
+- Layered transparency via `Colours.layer()` — backgrounds, panels, and tiles tint coherently;
+  when Caelestia transparency is off, upstream's flat opacity/glass effects apply instead
+- Roman-numeral labels for workspaces (I, II, III, …), including numerically-named scratchpads
+- WlrLayer namespace `caelestia-overview` (Caelestia's Hyprland layerrules blur/tint it)
+- `WlrLayershell.exclusionMode: ExclusionMode.Ignore`
 - Hot-corner exit calls back into the main `shell` IPC (`qs ipc -c shell call hotcorner ignore`)
+- Defaults tuned for this setup: 2x4 grid, `colorSource: "caelestia"`, empty rows never collapse
 
 ## Installation
 
@@ -72,31 +77,39 @@ qs -c overview &
 | Click workspace | Switch to it |
 | Click window | Focus it |
 | Middle-click window | Close it |
-| Drag window | Move to another workspace |
+| Drag window | Move to another workspace, or onto a scratchpad tile |
 
 ## Configuration
 
-### Workspace grid
+Everything is driven by an optional `config.json` next to `shell.qml`
+(`~/.config/quickshell/overview/config.json`). It is not tracked by git. Copy
+`config.example.json` to start from the documented set of keys; anything absent falls back to
+the defaults in `common/Config.qml`.
 
-Edit `common/Config.qml`:
-
-```qml
-property QtObject overview: QtObject {
-    property int rows: 2
-    property int columns: 4
-    property real scale: 0.16
-    property bool enable: true
-    property bool showSpecialWorkspaces: true
-    property int normalWorkspaceCount: 8     // shown in grid (rows * columns)
-    property int specialWorkspaceCount: 8    // matches scratchpad-workspaces.conf
+```json
+{
+  "overview": {
+    "rows": 2,
+    "columns": 4,
+    "scale": 0.16,
+    "hideEmptyRows": false,
+    "showSpecialWorkspaces": true
+  },
+  "position": { "topMargin": 100 },
+  "appearance": { "colorSource": "caelestia" }
 }
 ```
 
-To resize the overview: tweak `scale` (smaller = more compact). To hide the special-workspace row: set `showSpecialWorkspaces: false`.
+Notable keys:
 
-### Position
-
-Edit `modules/overview/Overview.qml` (`topMargin` near line 173).
+- `overview.scale` — overall size (smaller = more compact)
+- `overview.hideEmptyRows` — collapse rows with no windows (this fork defaults to `false`)
+- `overview.showSpecialWorkspaces` — show the scratchpad strip
+- `overview.specialWorkspaces` — pin scratchpads that should always be shown; by default the
+  strip auto-discovers the special workspaces that exist on the current monitor, which is what
+  matches Caelestia's per-output `special:<N>-<MONITOR>` naming
+- `position.topMargin` — vertical placement of the overview panel
+- `appearance.colorSource` — `caelestia` (default here), `matugen`, or `default`
 
 ### Theming
 
@@ -117,6 +130,8 @@ Transparency is read from `~/.config/caelestia/shell.json`:
 ```
 
 `base` controls the root layer alpha; `layers` controls how strongly stacked layers are tinted.
+With `enabled: false` the overview falls back to upstream's `overview.effects.*` opacity and
+glass options from `config.json`.
 
 ## Removed (vs. illogical-impulse)
 
@@ -127,12 +142,14 @@ App search, emoji picker, clipboard history, and integration with the full illog
 ```
 overview/
 ├── shell.qml                       # Entry point
+├── config.example.json             # Documented config.json keys
+├── quickshell-overview.qml         # matugen template (only used by colorSource: "matugen")
 ├── common/
-│   ├── Appearance.qml              # Color/font/animation roles (consumes Colours)
-│   ├── Config.qml                  # Workspace counts, scale, hacks
+│   ├── Appearance.qml              # Color/font/animation roles; picks the color source
+│   ├── Config.qml                  # Defaults + config.json loader
 │   ├── functions/
 │   │   ├── ColorUtils.qml
-│   │   └── NumberUtils.qml         # toRoman() for special workspaces
+│   │   └── NumberUtils.qml         # toRoman() for workspace labels
 │   └── widgets/                    # StyledText, StyledToolTip, ...
 ├── services/
 │   ├── Colours.qml                 # Caelestia palette + transparency loader
@@ -140,7 +157,7 @@ overview/
 │   └── HyprlandData.qml
 └── modules/overview/
     ├── Overview.qml                # PanelWindow, key handling, hot corner
-    ├── OverviewWidget.qml          # Workspace grid + special row
+    ├── OverviewWidget.qml          # Workspace grid + scratchpad strip
     └── OverviewWindow.qml          # Per-window preview
 ```
 
