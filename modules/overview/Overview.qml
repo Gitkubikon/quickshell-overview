@@ -32,12 +32,13 @@ Scope {
                 item: GlobalStates.overviewOpen ? keyHandler : null
             }
 
-                        anchors {
-                            top: true
-                            bottom: true
-                            left: true
-                            right: true
-                        }
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
+
             HyprlandFocusGrab {
                 id: grab
                 windows: [root]

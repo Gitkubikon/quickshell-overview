@@ -321,13 +321,14 @@ Item {
                     readonly property real normalWSOffsetX: (root.workspaceImplicitWidth + workspaceSpacing) * workspaceColIndex
                     readonly property real normalWSOffsetY: (root.workspaceImplicitHeight + workspaceSpacing) * workspaceRowIndex
 
-                    readonly property real specialWSTileSize: root.workspaceImplicitWidth * 0.7
+                    readonly property real specialWSTileWidth: root.workspaceImplicitWidth * 0.7
+                    readonly property real specialWSTileHeight: root.workspaceImplicitHeight * 0.7
                     readonly property real specialWSGridStartY: workspaceGrid.implicitHeight + workspaceSpacing * 3
-                    readonly property real specialWS4TileWidth: 4 * specialWSTileSize + 3 * workspaceSpacing
+                    readonly property real specialWS4TileWidth: 4 * specialWSTileWidth + 3 * workspaceSpacing
                     readonly property real specialWSGridStartX: (workspaceGrid.implicitWidth  - specialWS4TileWidth) / 2
 
-                    readonly property real specialWSOffsetX: specialWSGridStartX + specialWorkspaceCol * (specialWSTileSize + workspaceSpacing)
-                    readonly property real specialWSOffsetY: specialWSGridStartY + specialWorkspaceRow * (specialWSTileSize + workspaceSpacing)
+                    readonly property real specialWSOffsetX: specialWSGridStartX + specialWorkspaceCol * (specialWSTileWidth + workspaceSpacing)
+                    readonly property real specialWSOffsetY: specialWSGridStartY + specialWorkspaceRow * (specialWSTileHeight + workspaceSpacing)
 
                     xOffset: isInSpecialWorkspace ? specialWSOffsetX : normalWSOffsetX
                     yOffset: isInSpecialWorkspace ? specialWSOffsetY : normalWSOffsetY

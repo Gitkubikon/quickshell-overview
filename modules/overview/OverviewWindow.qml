@@ -1,8 +1,8 @@
-import Qt5Compat.GraphicalEffects
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import "../../common"
 import "../../common/functions"
 import "../../services"
@@ -37,6 +37,7 @@ Item { // Window
     property bool indicateXWayland: windowData?.xwayland ?? false
 
     property bool enableAnimations: false
+    property bool previewCaptureEnabled: true
 
     x: initX
     y: initY
@@ -44,20 +45,13 @@ Item { // Window
     height: Math.min((windowData?.size[1] ?? 100) * root.scale, availableWorkspaceHeight)
     opacity: (windowData?.monitor ?? -1) == widgetMonitorId ? 1 : 0.4
 
+    clip: true
+
     Timer {
         interval: 1
         running: true
         repeat: false
         onTriggered: root.enableAnimations = true
-    }
-
-    layer.enabled: true
-    layer.effect: OpacityMask {
-        maskSource: Rectangle {
-            width: root.width
-            height: root.height
-            radius: Appearance.rounding.windowRounding * root.scale
-        }
     }
 
     Behavior on x {
@@ -77,88 +71,74 @@ Item { // Window
         animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
     }
 
-                    ScreencopyView {
+    ScreencopyView {
+        id: windowPreview
+        anchors.fill: parent
+        captureSource: GlobalStates.overviewOpen && root.previewCaptureEnabled ? root.toplevel : null
+        live: false
 
-                        id: windowPreview
+        Rectangle {
+            anchors.fill: parent
+            radius: Appearance.rounding.windowRounding * root.scale
+            color: pressed ? ColorUtils.transparentize(Appearance.colors.colLayer2Active, 0.5) :
+                hovered ? ColorUtils.transparentize(Appearance.colors.colLayer2Hover, 0.7) :
+                ColorUtils.transparentize(Appearance.colors.colLayer2)
+            border.color: ColorUtils.transparentize(Appearance.m3colors.m3outline, 0.7)
+            border.width: 1
+        }
 
-                        anchors.fill: parent
+        ColumnLayout {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.right: parent.right
+            spacing: Appearance.font.pixelSize.smaller * 0.5
 
-                        captureSource: GlobalStates.overviewOpen ? root.toplevel : null
+            Image {
+                id: windowIcon
+                property var iconSize: {
+                    return Math.min(targetWindowWidth, targetWindowHeight) * (root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio) / (root.monitorData?.scale ?? 1);
+                }
+                Layout.alignment: Qt.AlignHCenter
+                source: root.iconPath
+                width: iconSize
+                height: iconSize
+                sourceSize: Qt.size(iconSize, iconSize)
 
-                        live: false
+                Behavior on width {
+                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+                }
+                Behavior on height {
+                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+                }
+            }
+        }
+    }
 
+    function refreshCapture() {
+        if (!GlobalStates.overviewOpen)
+            return;
 
+        root.previewCaptureEnabled = false;
+        previewResetTimer.restart();
+    }
 
-                        Rectangle {
+    Timer {
+        id: previewResetTimer
+        interval: 60
+        repeat: false
+        onTriggered: root.previewCaptureEnabled = true
+    }
 
-                            anchors.fill: parent
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (!GlobalStates.overviewOpen)
+                return;
 
-                            radius: Appearance.rounding.windowRounding * root.scale
-
-                            color: pressed ? ColorUtils.transparentize(Appearance.colors.colLayer2Active, 0.5) :
-
-                                hovered ? ColorUtils.transparentize(Appearance.colors.colLayer2Hover, 0.7) :
-
-                                ColorUtils.transparentize(Appearance.colors.colLayer2)
-
-                            border.color : ColorUtils.transparentize(Appearance.m3colors.m3outline, 0.7)
-
-                            border.width : 1
-
-                        }
-
-
-
-                        ColumnLayout {
-
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            anchors.left: parent.left
-
-                            anchors.right: parent.right
-
-                            spacing: Appearance.font.pixelSize.smaller * 0.5
-
-
-
-                            Image {
-
-                                id: windowIcon
-
-                                property var iconSize: {
-
-                                    return Math.min(targetWindowWidth, targetWindowHeight) * (root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio) / (root.monitorData?.scale ?? 1);
-
-                                }
-
-                                Layout.alignment: Qt.AlignHCenter
-
-                                source: root.iconPath
-
-                                width: iconSize
-
-                                height: iconSize
-
-                                sourceSize: Qt.size(iconSize, iconSize)
-
-
-
-                                Behavior on width {
-
-                                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-
-                                }
-
-                                Behavior on height {
-
-                                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-
-                                }
-
-                            }
-
-                        }
-
-                    }
-
+            const eventName = `${event?.name ?? event?.event ?? event?.type ?? ""}`;
+            if (eventName === "closewindow" || eventName === "openwindow" || eventName === "movewindow") {
+                root.refreshCapture();
+            }
+        }
+    }
 }

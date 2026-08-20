@@ -1,215 +1,163 @@
-# Quickshell Overview for Hyprland
+# Caelestia Overview
 
-<div align="center">
+A Hyprland workspace overview for Quickshell, tuned for the [Caelestia](https://github.com/caelestia-dots) shell setup. Shows all workspaces with live window previews, drag-and-drop, special-workspace row, layered transparency, and Roman-numeral special-workspace numbering.
 
-A standalone workspace overview module for Hyprland using Quickshell - shows all workspaces with live window previews, drag-and-drop support, and Super+Tab keybind.
-
-![Quickshell](https://img.shields.io/badge/Quickshell-0.2.0-blue?style=flat-square)
-![Hyprland](https://img.shields.io/badge/Hyprland-Compatible-purple?style=flat-square)
-![Qt6](https://img.shields.io/badge/Qt-6-green?style=flat-square)
-![License](https://img.shields.io/badge/License-GPL-orange?style=flat-square)
-
-</div>
+Forked from [Shanu-Kumawat/quickshell-overview](https://github.com/Shanu-Kumawat/quickshell-overview), itself extracted from [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
 
 ---
 
-## 📸 Preview
+## Preview
 
 ![Overview Screenshot](assets/image.png)
 
-https://github.com/user-attachments/assets/79ceb141-6b9e-4956-8e09-aaf72b66550c
-
-> *Workspace overview showing live window previews with drag-and-drop support*
+> Workspace overview with live previews and drag-and-drop. Screenshot is from upstream and may not reflect current Caelestia theming.
 
 ---
 
-## ✨ Features
+## What this fork adds
 
-- 🖼️ Visual workspace overview showing all workspaces and windows
-- 🎯 Click windows to focus them
-- 🖱️ Middle-click windows to close them  
-- 🔄 Drag and drop windows between workspaces
-- ⌨️ Keyboard navigation (Arrow keys, vim keys, number shortcuts)
-- 💡 Hover tooltips showing window information
-- 🎨 Material Design 3 theming
-- ⚡ Smooth animations and transitions
+- Pulls colors live from Caelestia (`~/.local/state/caelestia/scheme.json`)
+- Pulls transparency from Caelestia (`~/.config/caelestia/shell.json` → `appearance.transparency`)
+- Layered transparency via `Colours.layer()` — backgrounds, panels, and tiles tint coherently
+- 8 normal + 8 special workspaces (matches Caelestia's `scratchpad-workspaces.conf`)
+- Roman-numeral labels for special workspaces (I, II, III, …)
+- WlrLayer namespace `caelestia-overview` (lets Caelestia's blur/effects target it)
+- Hot-corner exit calls back into the main `shell` IPC (`qs ipc -c shell call hotcorner ignore`)
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 
-- **Hyprland** compositor
-- **Quickshell** ([installation guide](https://quickshell.org/docs/v0.1.0/guide/install-setup/))
-- **Qt 6** with modules: QtQuick, QtQuick.Controls, Qt5Compat.GraphicalEffects
+- Hyprland
+- Quickshell ([install guide](https://quickshell.org/docs/v0.1.0/guide/install-setup/))
+- Qt 6 (QtQuick, QtQuick.Controls, QtQuick.Layouts)
+- Caelestia shell installed and writing `scheme.json` (only required for live theming — defaults are bundled)
 
 ### Setup
 
-1. **Clone this repository** to your Quickshell config directory:
+1. Clone into your Quickshell config directory:
+
    ```bash
    git clone https://github.com/Shanu-Kumawat/quickshell-overview ~/.config/quickshell/overview
    ```
 
-2. **Add keybind** to your Hyprland config (`~/.config/hypr/hyprland.conf`):
+2. Add a keybind to `~/.config/hypr/hyprland.conf`:
+
    ```conf
    bind = Super, TAB, exec, qs ipc -c overview call overview toggle
    ```
 
-3. **Auto-start** the overview (add to Hyprland config):
+3. Auto-start the overview:
+
    ```conf
    exec-once = qs -c overview
    ```
 
-4. **Reload Hyprland**:
-   ```bash
-   hyprctl reload
-   ```
+4. Reload Hyprland: `hyprctl reload`
 
-### Manual Start (if needed)
+### Manual start
 
 ```bash
 qs -c overview &
 ```
 
-## 🎮 Usage
+## Usage
 
 | Action | Description |
-|--------|-------------|
-| **Super + Tab** | Toggle the overview |
-| **Arrow Keys** | Navigate between workspaces |
-| **h / j / k / l** | Vim-style navigation (left/down/up/right) |
-| **1-9, 0** | Jump to Nth workspace in current group (0 = 10th) |
-| **Escape / Enter** | Close the overview |
-| **Click workspace** | Switch to that workspace |
-| **Click window** | Focus that window |
-| **Middle-click window** | Close that window |
-| **Drag window** | Move window to different workspace |
+|---|---|
+| `Super + Tab` | Toggle overview |
+| Arrow keys / `h j k l` | Navigate workspaces |
+| `1`–`9`, `0` | Jump to Nth workspace in current group (`0` = 10th) |
+| `Escape` / `Enter` | Close overview |
+| Click workspace | Switch to it |
+| Click window | Focus it |
+| Middle-click window | Close it |
+| Drag window | Move to another workspace |
 
----
+## Configuration
 
-## ⚙️ Configuration
+### Workspace grid
 
-> **⚠️ Want to change the size, position, or number of workspaces?**  
-> Edit `~/.config/quickshell/overview/common/Config.qml` - it's all there!
-
-### Workspace Grid
-
-Edit `~/.config/quickshell/overview/common/Config.qml`:
+Edit `common/Config.qml`:
 
 ```qml
 property QtObject overview: QtObject {
-    property int rows: 2        // Number of workspace rows
-    property int columns: 5     // Number of workspace columns (10 total workspaces)
-    property real scale: 0.16   // Overview scale factor (0.1-0.3, smaller = more compact)
+    property int rows: 2
+    property int columns: 4
+    property real scale: 0.16
     property bool enable: true
+    property bool showSpecialWorkspaces: true
+    property int normalWorkspaceCount: 8     // shown in grid (rows * columns)
+    property int specialWorkspaceCount: 8    // matches scratchpad-workspaces.conf
 }
 ```
 
-**Common adjustments:**
-- **Too small?** Increase `scale` (try 0.20 or 0.25)
-- **Too big?** Decrease `scale` (try 0.12 or 0.14)
-- **More workspaces?** Change `rows` and `columns` (e.g., 3 rows × 4 columns = 12 workspaces)
+To resize the overview: tweak `scale` (smaller = more compact). To hide the special-workspace row: set `showSpecialWorkspaces: false`.
 
 ### Position
 
-Edit `~/.config/quickshell/overview/modules/overview/Overview.qml` (line ~111):
+Edit `modules/overview/Overview.qml` (`topMargin` near line 173).
 
-```qml
-anchors {
-    horizontalCenter: parent.horizontalCenter
-    top: parent.top
-    topMargin: 100  // Change this value to move up/down
+### Theming
+
+Colors come from Caelestia's scheme. To run without Caelestia, edit the `M3Palette` defaults at the bottom of `services/Colours.qml`.
+
+Transparency is read from `~/.config/caelestia/shell.json`:
+
+```json
+{
+  "appearance": {
+    "transparency": {
+      "enabled": true,
+      "base": 0.85,
+      "layers": 0.4
+    }
+  }
 }
 ```
 
-### Theme & Colors
+`base` controls the root layer alpha; `layers` controls how strongly stacked layers are tinted.
 
-Edit `~/.config/quickshell/overview/common/Appearance.qml` to customize:
-- Colors (m3colors and colors objects)
-- Font families and sizes  
-- Animation curves and durations
-- Border radius values
+## Removed (vs. illogical-impulse)
 
----
+App search, emoji picker, clipboard history, and integration with the full illogical-impulse shell were all removed upstream to make this standalone.
 
-## 📋 Requirements
-
-- **Hyprland** compositor (tested on latest versions)
-- **Quickshell** (Qt6-based shell framework)
-- **Qt 6** with the following modules:
-  - QtQuick
-  - QtQuick.Controls
-  - QtQuick.Layouts
-  - Qt5Compat.GraphicalEffects
-  - Quickshell.Wayland
-  - Quickshell.Hyprland
-
-## 🚫 Removed Features (from original illogical-impulse)
-
-The following features were removed to make it standalone:
-
-- App search functionality
-- Emoji picker
-- Clipboard history integration
-- Search widget
-- Integration with the full illogical-impulse shell ecosystem
-
-## 📁 File Structure
+## File structure
 
 ```
-~/.config/quickshell/overview/
-├── shell.qml                      # Main entry point
-├── README.md                      # This file
-├── hyprland-config.conf          # Configuration reference
+overview/
+├── shell.qml                       # Entry point
 ├── common/
-│   ├── Appearance.qml            # Theme and styling
-│   ├── Config.qml                # Configuration options
+│   ├── Appearance.qml              # Color/font/animation roles (consumes Colours)
+│   ├── Config.qml                  # Workspace counts, scale, hacks
 │   ├── functions/
-│   │   └── ColorUtils.qml        # Color manipulation utilities
-│   └── widgets/
-│       ├── StyledText.qml        # Styled text component
-│       ├── StyledRectangularShadow.qml
-│       ├── StyledToolTip.qml
-│       └── StyledToolTipContent.qml
+│   │   ├── ColorUtils.qml
+│   │   └── NumberUtils.qml         # toRoman() for special workspaces
+│   └── widgets/                    # StyledText, StyledToolTip, ...
 ├── services/
-│   ├── GlobalStates.qml          # Global state management
-│   └── HyprlandData.qml          # Hyprland data provider
-└── modules/
-    └── overview/
-        ├── Overview.qml          # Main overview component
-        ├── OverviewWidget.qml    # Workspace grid widget
-        └── OverviewWindow.qml    # Individual window preview
+│   ├── Colours.qml                 # Caelestia palette + transparency loader
+│   ├── GlobalStates.qml            # overviewOpen
+│   └── HyprlandData.qml
+└── modules/overview/
+    ├── Overview.qml                # PanelWindow, key handling, hot corner
+    ├── OverviewWidget.qml          # Workspace grid + special row
+    └── OverviewWindow.qml          # Per-window preview
 ```
 
-## 🎯 IPC Commands
+## IPC
 
 ```bash
-# Toggle overview
 qs ipc -c overview call overview toggle
-
-# Open overview
 qs ipc -c overview call overview open
-
-# Close overview  
 qs ipc -c overview call overview close
 ```
 
-## 🐛 Known Issues
+## Known issues
 
-- Window icons may fallback to generic icon if app class name doesn't match icon theme
-- Potential crashes during rapid window state changes due to Wayland screencopy buffer management
+- Window icons may fall back to a generic icon if the app class doesn't match the icon theme
+- Rapid window state changes can briefly produce stale previews — mitigated by Hyprland event-driven re-capture, but not eliminated
 
-##  Credits
+## Credits
 
-Extracted from the overview feature in [illogical-impulse](https://github.com/end-4/dots-hyprland) by [end-4](https://github.com/end-4).
-
-Adapted as a standalone component for Hyprland + Quickshell users who want just the overview functionality.
-
----
-
-<div align="center">
-
-**Note:** Maintenance will be limited due to time constraints, but **PRs and code improvements are welcome!** Feel free to contribute or fork for your own needs.
-
-Made with ❤️ for the Hyprland community
-
-</div>
+- Upstream: [Shanu-Kumawat/quickshell-overview](https://github.com/Shanu-Kumawat/quickshell-overview)
+- Original: [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland)
