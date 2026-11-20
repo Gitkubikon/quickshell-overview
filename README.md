@@ -40,25 +40,25 @@ Everything upstream does, plus:
 
 ### Setup
 
-1. Clone into your Quickshell config directory:
+1. Link the checkout into your Quickshell config directory:
 
    ```bash
-   git clone https://github.com/Shanu-Kumawat/quickshell-overview ~/.config/quickshell/overview
+   ln -s ~/Projects/Caelestia/overview ~/.config/quickshell/overview
    ```
 
-2. Add a keybind to `~/.config/hypr/hyprland.conf`:
+2. Auto-start it (Hyprland Lua config, e.g. `~/.config/caelestia/hypr-user.lua`):
 
-   ```conf
-   bind = Super, TAB, exec, qs ipc -c overview call overview toggle
+   ```lua
+   hl.on("hyprland.start", function()
+       hl.exec_cmd("qs -c overview")
+   end)
    ```
 
-3. Auto-start the overview:
+3. Open it from the Caelestia shell's top-left hot corner, or bind it:
 
-   ```conf
-   exec-once = qs -c overview
+   ```lua
+   hl.bind("SUPER + TAB", hl.dsp.exec_cmd("qs ipc -c overview call overview toggle"))
    ```
-
-4. Reload Hyprland: `hyprctl reload`
 
 ### Manual start
 
@@ -70,7 +70,7 @@ qs -c overview &
 
 | Action | Description |
 |---|---|
-| `Super + Tab` | Toggle overview |
+| Top-left hot corner | Toggle overview (from the Caelestia shell; sliding back into the corner closes it) |
 | Arrow keys / `h j k l` | Navigate workspaces |
 | `1`–`9`, `0` | Jump to Nth workspace in current group (`0` = 10th) |
 | `Escape` / `Enter` | Close overview |
@@ -113,7 +113,7 @@ Notable keys:
 
 ### Theming
 
-Colors come from Caelestia's scheme. To run without Caelestia, edit the `M3Palette` defaults at the bottom of `services/Colours.qml`.
+Colors come from Caelestia's scheme (`~/.local/state/caelestia/scheme.json`). Without it, the `M3Palette` defaults in `services/Colours.qml` apply.
 
 Transparency is read from `~/.config/caelestia/shell.json`:
 
