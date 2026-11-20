@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import "../../common"
@@ -40,16 +39,86 @@ Item { // Window
         const widgetScale = widgetMonitorData.scale ?? 1;
         return (widgetHeight * sourceScale) / (sourceHeight * widgetScale);
     }
-    property real initX: Math.max(((windowData?.at[0] ?? 0) - positionBaseX) * root.scale * geometryScaleX, 0) + xOffset
-    property real initY: Math.max(((windowData?.at[1] ?? 0) - positionBaseY) * root.scale * geometryScaleY, 0) + yOffset
+    property real initX: Math.max(((windowData?.at?.[0] ?? 0) - positionBaseX) * root.scale * geometryScaleX, 0) + xOffset
+    property real initY: Math.max(((windowData?.at?.[1] ?? 0) - positionBaseY) * root.scale * geometryScaleY, 0) + yOffset
+
+    // Per-workspace placement: Hyprland allows mixing layouts via
+    // per-workspace rules, so each window is placed according to its own
+    // workspace's layout. Scrolling workspaces render as a tape scaled to
+    // fit the tile; other layouts use raw positions.
+    readonly property bool scrollingPlacement: (HyprlandData.layoutByWorkspace[windowData?.workspace?.id] ?? "") === "scrolling"
+
+    readonly property var wsFocused: scrollingPlacement ? HyprlandData.focusedWindowOfWorkspaceId(windowData?.workspace?.id) : null
+    // Extent of the workspace's tape, scaled to fit the tile. Starts as the
+    // monitor's work area (what the tile represents) so window gaps survive
+    // and only a tape running off screen shrinks to fit.
+    readonly property var tapeBounds: {
+        if (!scrollingPlacement)
+            return null;
+        const wsId = windowData?.workspace?.id;
+        const wins = HyprlandData.windowList.filter(w => !w.floating && w.workspace?.id === wsId && !(w.hidden ?? false));
+        if (wins.length === 0)
+            return null;
+        const rotated = (monitorData?.transform ?? 0) % 2 === 1;
+        const reserved = monitorData?.reserved ?? [0, 0, 0, 0];
+        const monScale = monitorData?.scale ?? 1;
+        const workW = ((rotated ? monitorData?.height : monitorData?.width) ?? 0) / monScale - reserved[0] - reserved[2];
+        const workH = ((rotated ? monitorData?.width : monitorData?.height) ?? 0) / monScale - reserved[1] - reserved[3];
+        let minX = 0, maxX = workW, minY = 0, maxY = workH;
+        for (const w of wins) {
+            const x0 = (w.at?.[0] ?? 0) - positionBaseX;
+            const y0 = (w.at?.[1] ?? 0) - positionBaseY;
+            if (x0 < minX) minX = x0;
+            if (x0 + (w.size?.[0] ?? 0) > maxX) maxX = x0 + (w.size?.[0] ?? 0);
+            if (y0 < minY) minY = y0;
+            if (y0 + (w.size?.[1] ?? 0) > maxY) maxY = y0 + (w.size?.[1] ?? 0);
+        }
+        return { minX: minX, maxX: maxX, minY: minY, maxY: maxY };
+    }
+    readonly property real tapeFit: {
+        if (!tapeBounds)
+            return 1;
+        const rawW = Math.max(1, tapeBounds.maxX - tapeBounds.minX) * scale * widthRatio;
+        const rawH = Math.max(1, tapeBounds.maxY - tapeBounds.minY) * scale * heightRatio;
+        return Math.min(1, (availableWorkspaceWidth ?? 0) / rawW, (availableWorkspaceHeight ?? 0) / rawH);
+    }
+    readonly property real scrollingX: {
+        const sx = scale * widthRatio;
+        if (windowData?.floating)
+            return xOffset + (Math.max((windowData?.at?.[0] ?? 0) - positionBaseX, 0) - (tapeBounds?.minX ?? 0)) * sx * tapeFit;
+        if (!tapeBounds)
+            return xOffset + (availableWorkspaceWidth - Math.min(targetWindowWidth, availableWorkspaceWidth)) / 2;
+        return xOffset + ((windowData?.at?.[0] ?? 0) - positionBaseX - tapeBounds.minX) * sx * tapeFit;
+    }
+    readonly property real scrollingY: {
+        const sy = scale * heightRatio;
+        if (windowData?.floating)
+            return yOffset + (Math.max((windowData?.at?.[1] ?? 0) - positionBaseY, 0) - (tapeBounds?.minY ?? 0)) * sy * tapeFit;
+        if (!tapeBounds)
+            return yOffset;
+        return yOffset + ((windowData?.at?.[1] ?? 0) - positionBaseY - tapeBounds.minY) * sy * tapeFit;
+    }
+
+    // Dragging (drag.target) and imperative x/y writes destroy the x/y
+    // bindings for the delegate's lifetime; call this to track initX/initY
+    // (and thus fresh windowData) again
+    function rebindPosition() {
+        if (scrollingPlacement) {
+            x = Qt.binding(() => scrollingX);
+            y = Qt.binding(() => scrollingY);
+        } else {
+            x = Qt.binding(() => initX);
+            y = Qt.binding(() => initY);
+        }
+    }
     property real xOffset: 0
     property real yOffset: 0
     property int widgetMonitorId: 0
     property real geometryScaleX: widthRatio
     property real geometryScaleY: heightRatio
     
-    property var targetWindowWidth: (windowData?.size[0] ?? 100) * scale * geometryScaleX
-    property var targetWindowHeight: (windowData?.size[1] ?? 100) * scale * geometryScaleY
+    property var targetWindowWidth: (windowData?.size?.[0] ?? 100) * scale * geometryScaleX
+    property var targetWindowHeight: (windowData?.size?.[1] ?? 100) * scale * geometryScaleY
     property bool hovered: false
     property bool pressed: false
 
@@ -86,9 +155,12 @@ Item { // Window
         const raw = `${entry?.icon ?? ""}`.trim();
         const withoutProviderPrefix = raw.replace(/^image:\/\/icon\//, "");
         const withoutQuery = withoutProviderPrefix.split("?")[0].trim();
-        return withoutQuery.length > 0 ? withoutQuery : "application-x-executable";
+        // Empty when no desktop entry matched: requesting the generic
+        // application-x-executable fallback just logs icon-theme warnings
+        // since it (and image-missing) are often not installed
+        return withoutQuery.length > 0 ? withoutQuery : "";
     }
-    property var iconPath: Quickshell.iconPath(iconName, "image-missing")
+    property var iconPath: iconName.length > 0 ? Quickshell.iconPath(iconName, "image-missing") : ""
     property bool compactMode: Appearance.font.pixelSize.smaller * 4 > targetWindowHeight || Appearance.font.pixelSize.smaller * 4 > targetWindowWidth
 
     property bool indicateXWayland: windowData?.xwayland ?? false
@@ -98,12 +170,17 @@ Item { // Window
     property bool suspendPositionAnimation: false
     property bool animateSize: true
     
-    x: initX
-    y: initY
-    width: Math.min(targetWindowWidth, availableWorkspaceWidth)
-    height: Math.min(targetWindowHeight, availableWorkspaceHeight)
+    x: scrollingPlacement ? scrollingX : initX
+    y: scrollingPlacement ? scrollingY : initY
+    width: scrollingPlacement ? targetWindowWidth * tapeFit : Math.min(targetWindowWidth, availableWorkspaceWidth)
+    height: scrollingPlacement ? targetWindowHeight * tapeFit : Math.min(targetWindowHeight, availableWorkspaceHeight)
     opacity: (windowData?.monitor ?? -1) == widgetMonitorId ? 1 : Config.options.windowPreview.inactiveMonitorOpacity
     visible: {
+        // Scrolling layout's fullscreen_on_one_column reports fullscreen=1
+        // for ordinary single-window columns — that flag doesn't mean real
+        // fullscreen there, so don't hide siblings because of it
+        if (scrollingPlacement)
+            return true;
         const thisWsId = windowData?.workspace?.id;
         const isFullscreen = (windowData?.fullscreen ?? 0) > 0;
         if (isFullscreen || thisWsId === undefined) return true;
@@ -160,12 +237,14 @@ Item { // Window
         live: livePreviewEnabled
         layer.enabled: true
         layer.smooth: true
-        layer.effect: MultiEffect {
-            maskEnabled: true
-            maskSource: previewMask
-            maskThresholdMin: 0.5
-            maskSpreadAtMin: 1.0
-        }
+        // layer.effect takes a Component in Qt6; only instantiate
+        // the MultiEffect-based mask when QtQuick.Effects exists
+        layer.effect: EffectsSupport.effectsAvailable ? windowRoundedMaskComponent : null
+    }
+
+    Component {
+        id: windowRoundedMaskComponent
+        RoundedMask { mask: previewMask }
     }
 
     Rectangle {

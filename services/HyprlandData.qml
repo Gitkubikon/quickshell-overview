@@ -17,9 +17,15 @@ Singleton {
     property var windowByAddress: ({})
     property var workspaces: []
     property var allWorkspaces: []
+    // Per-workspace tiling layout ("scrolling", "dwindle", ...); Hyprland
+    // allows mixing them via per-workspace rules
+    property var layoutByWorkspace: ({})
     property var workspaceIds: []
     property var workspaceById: ({})
     property var activeWorkspace: null
+    // Bumped every time the client list is replaced; lets consumers tell
+    // stale snapshots from fresh data
+    property int clientsRevision: 0
     property var monitors: []
     property var layers: ({})
     property bool pendingWindowsUpdate: false
@@ -29,20 +35,40 @@ Singleton {
     property bool pendingActiveWorkspaceUpdate: false
 
     function updateWindowList() {
+        if (getClients.running) {
+            pendingWindowsUpdate = true;
+            return;
+        }
         getClients.running = true;
     }
 
     function updateLayers() {
+        if (getLayers.running) {
+            pendingLayersUpdate = true;
+            return;
+        }
         getLayers.running = true;
     }
 
     function updateMonitors() {
+        if (getMonitors.running) {
+            pendingMonitorsUpdate = true;
+            return;
+        }
         getMonitors.running = true;
     }
 
     function updateWorkspaces() {
-        getWorkspaces.running = true;
-        getActiveWorkspace.running = true;
+        if (getWorkspaces.running) {
+            pendingWorkspacesUpdate = true;
+        } else {
+            getWorkspaces.running = true;
+        }
+        if (getActiveWorkspace.running) {
+            pendingActiveWorkspaceUpdate = true;
+        } else {
+            getActiveWorkspace.running = true;
+        }
     }
 
     function updateAll() {
@@ -80,12 +106,29 @@ Singleton {
         }
         if (pendingWorkspacesUpdate) {
             pendingWorkspacesUpdate = false;
-            getWorkspaces.running = true;
+            if (getWorkspaces.running)
+                pendingWorkspacesUpdate = true;
+            else
+                getWorkspaces.running = true;
         }
         if (pendingActiveWorkspaceUpdate) {
             pendingActiveWorkspaceUpdate = false;
-            getActiveWorkspace.running = true;
+            if (getActiveWorkspace.running)
+                pendingActiveWorkspaceUpdate = true;
+            else
+                getActiveWorkspace.running = true;
         }
+    }
+
+    // Focused (top of focus history) tiled window of a workspace; falls back
+    // to the leftmost one. Anchors the tape slice of scrolling workspaces.
+    function focusedWindowOfWorkspaceId(workspaceId) {
+        const inWs = root.windowList.filter(w =>
+            !w.floating && w.workspace?.id === workspaceId && (w.hidden ?? false) === false);
+        if (inWs.length === 0)
+            return null;
+        const focused = inWs.find(w => w.focusHistoryID === 0);
+        return focused ?? inWs.reduce((a, b) => ((a.at?.[0] ?? 0) <= (b.at?.[0] ?? 0) ? a : b));
     }
 
     function biggestWindowForWorkspace(workspaceId) {
@@ -116,7 +159,10 @@ Singleton {
             }
 
             if (eventName === "workspace" || eventName === "workspacev2" || eventName === "focusedmon" || eventName === "focusedmonv2" || eventName === "activewindow" || eventName === "activewindowv2") {
-                scheduleUpdates(false, false, false, true, true);
+                // activewindow must also refresh the client list: scrolling
+                // workspace anchors read focusHistoryID, and focus changes
+                // within a workspace only arrive as activewindow events
+                scheduleUpdates(true, false, false, true, true);
                 return;
             }
 
@@ -142,7 +188,14 @@ Singleton {
         stdout: StdioCollector {
             id: clientsCollector
             onStreamFinished: {
-                root.windowList = JSON.parse(clientsCollector.text);
+                let parsed;
+                try {
+                    parsed = JSON.parse(clientsCollector.text);
+                } catch (error) {
+                    console.warn("overview: failed to parse hyprctl clients output", error);
+                    return;
+                }
+                root.windowList = parsed;
                 let tempWinByAddress = {};
                 for (var i = 0; i < root.windowList.length; ++i) {
                     var win = root.windowList[i];
@@ -150,6 +203,12 @@ Singleton {
                 }
                 root.windowByAddress = tempWinByAddress;
                 root.addresses = root.windowList.map(win => win.address);
+                root.clientsRevision += 1;
+
+                if (root.pendingWindowsUpdate) {
+                    root.pendingWindowsUpdate = false;
+                    root.updateWindowList();
+                }
             }
         }
     }
@@ -160,7 +219,16 @@ Singleton {
         stdout: StdioCollector {
             id: monitorsCollector
             onStreamFinished: {
-                root.monitors = JSON.parse(monitorsCollector.text);
+                try {
+                    root.monitors = JSON.parse(monitorsCollector.text);
+                } catch (error) {
+                    console.warn("overview: failed to parse hyprctl monitors output", error);
+                }
+
+                if (root.pendingMonitorsUpdate) {
+                    root.pendingMonitorsUpdate = false;
+                    root.updateMonitors();
+                }
             }
         }
     }
@@ -171,7 +239,16 @@ Singleton {
         stdout: StdioCollector {
             id: layersCollector
             onStreamFinished: {
-                root.layers = JSON.parse(layersCollector.text);
+                try {
+                    root.layers = JSON.parse(layersCollector.text);
+                } catch (error) {
+                    console.warn("overview: failed to parse hyprctl layers output", error);
+                }
+
+                if (root.pendingLayersUpdate) {
+                    root.pendingLayersUpdate = false;
+                    root.updateLayers();
+                }
             }
         }
     }
@@ -182,9 +259,21 @@ Singleton {
         stdout: StdioCollector {
             id: workspacesCollector
             onStreamFinished: {
-                const rawWorkspaces = JSON.parse(workspacesCollector.text);
+                let rawWorkspaces;
+                try {
+                    rawWorkspaces = JSON.parse(workspacesCollector.text);
+                } catch (error) {
+                    console.warn("overview: failed to parse hyprctl workspaces output", error);
+                    return;
+                }
                 root.allWorkspaces = rawWorkspaces;
                 root.workspaces = rawWorkspaces.filter(ws => ws.id >= 1 && ws.id <= 100);
+                let tempLayoutByWorkspace = {};
+                for (var i = 0; i < rawWorkspaces.length; ++i) {
+                    var ws = rawWorkspaces[i];
+                    tempLayoutByWorkspace[ws.id] = `${ws.tiledLayout ?? ""}`;
+                }
+                root.layoutByWorkspace = tempLayoutByWorkspace;
                 let tempWorkspaceById = {};
                 for (var i = 0; i < root.workspaces.length; ++i) {
                     var ws = root.workspaces[i];
@@ -192,6 +281,11 @@ Singleton {
                 }
                 root.workspaceById = tempWorkspaceById;
                 root.workspaceIds = root.workspaces.map(ws => ws.id);
+
+                if (root.pendingWorkspacesUpdate) {
+                    root.pendingWorkspacesUpdate = false;
+                    root.getWorkspaces.running = true;
+                }
             }
         }
     }
@@ -202,7 +296,16 @@ Singleton {
         stdout: StdioCollector {
             id: activeWorkspaceCollector
             onStreamFinished: {
-                root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
+                try {
+                    root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
+                } catch (error) {
+                    console.warn("overview: failed to parse hyprctl activeworkspace output", error);
+                }
+
+                if (root.pendingActiveWorkspaceUpdate) {
+                    root.pendingActiveWorkspaceUpdate = false;
+                    root.getActiveWorkspace.running = true;
+                }
             }
         }
     }

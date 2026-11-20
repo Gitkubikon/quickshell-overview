@@ -23,10 +23,10 @@ Everything upstream does, plus:
 - Transparency read from Caelestia (`~/.config/caelestia/shell.json` → `appearance.transparency`)
 - Layered transparency via `Colours.layer()` — backgrounds, panels, and tiles tint coherently;
   when Caelestia transparency is off, upstream's flat opacity/glass effects apply instead
-- Roman-numeral labels for workspaces (I, II, III, …), including numerically-named scratchpads
+- Roman-numeral labels for workspaces (I, II, III, …)
 - WlrLayer namespace `caelestia-overview` (Caelestia's Hyprland layerrules blur/tint it)
 - `WlrLayershell.exclusionMode: ExclusionMode.Ignore`
-- Hot-corner exit calls back into the main `shell` IPC (`qs ipc -c shell call hotcorner ignore`)
+- Hot-corner exit calls back into the main `caelestia` IPC (`qs ipc -c caelestia call hotcorner ignore`)
 - Defaults tuned for this setup: 2x4 grid, `colorSource: "caelestia"`, empty rows never collapse
 
 ## Installation

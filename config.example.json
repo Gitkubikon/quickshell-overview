@@ -55,8 +55,13 @@
     "includeInactiveMonitorPreviews": true,
     "previewRecaptureDelayMs": 60,
     "showSpecialWorkspaces": true,
+    "showNamedWorkspaces": true,
     "specialWorkspaces": [],
     "specialWorkspaceColumns": 4,
+    "scrolling": {
+      "enable": false,
+      "workspaceCount": 10
+    },
     "emptyWorkspaceWallpaper": "",
     "specialEmptyWorkspaceWallpaper": "",
     "effects": {

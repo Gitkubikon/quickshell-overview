@@ -113,8 +113,14 @@ Singleton {
             property bool includeInactiveMonitorPreviews: root.readBool("overview.includeInactiveMonitorPreviews", true)
             property int previewRecaptureDelayMs: root.readInt("overview.previewRecaptureDelayMs", 60)
             property bool showSpecialWorkspaces: root.readBool("overview.showSpecialWorkspaces", true)
+            property bool showNamedWorkspaces: root.readBool("overview.showNamedWorkspaces", true)
             property var specialWorkspaces: root.read("overview.specialWorkspaces", [])
             property int specialWorkspaceColumns: root.readInt("overview.specialWorkspaceColumns", columns)
+            property QtObject scrolling: QtObject {
+                // Vertical strip overview for Hyprland's scrolling layout
+                property bool enable: root.readBool("overview.scrolling.enable", false)
+                property int workspaceCount: root.readInt("overview.scrolling.workspaceCount", 10)
+            }
             property string emptyWorkspaceWallpaper: root.readString("overview.emptyWorkspaceWallpaper", "")
             property string specialEmptyWorkspaceWallpaper: root.readString("overview.specialEmptyWorkspaceWallpaper", "")
             property real workspaceSpacing: root.readReal("overview.workspaceSpacing", 5)
